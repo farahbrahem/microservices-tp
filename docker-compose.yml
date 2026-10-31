@@ -1,0 +1,55 @@
+services:
+  mongodb:
+    image: mongo
+    container_name: mongodb
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - micro-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      MONGO_URI: mongodb://mongodb:27017/users
+    networks:
+      - micro-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      MONGO_URI: mongodb://mongodb:27017/orders
+      USER_SERVICE_URL: http://user-service:3001
+    networks:
+      - micro-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+
+volumes:
+  mongo-data:
+
+networks:
+  micro-net:
+    driver: bridge
